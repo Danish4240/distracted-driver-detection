@@ -1,3 +1,7 @@
 streamlit
 torch
 torchvision
+matplotlib
+pillow
+numpy
+pandas
