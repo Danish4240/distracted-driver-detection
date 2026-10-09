@@ -44,7 +44,15 @@ def get_inference_transform():
 
 # Sidebar Configuration
 st.sidebar.header("Configuration")
-gemini_api_key = st.sidebar.text_input("Gemini API Key (for Seatbelt & AI Coach)", type="password")
+
+# Retrieve API key from Streamlit Secrets or Environment Variables automatically
+default_api_key = st.secrets.get("GEMINI_API_KEY", "") or os.environ.get("GEMINI_API_KEY", "")
+
+gemini_api_key = st.sidebar.text_input(
+    "Gemini API Key (for Seatbelt & AI Coach)",
+    value=default_api_key,
+    type="password"
+)
 
 try:
     model = load_detection_model()
@@ -58,8 +66,8 @@ uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png
 
 if uploaded_file is not None:
     col1, col2 = st.columns(2)
-
     image = Image.open(uploaded_file).convert("RGB")
+
     with col1:
         st.image(image, caption="Uploaded Driver Snapshot", use_container_width=True)
 
@@ -74,13 +82,11 @@ if uploaded_file is not None:
         outputs = model(tensor_img)
         probabilities = F.softmax(outputs, dim=1)[0]
         top_prob, top_catid = torch.max(probabilities, 0)
-
-    predicted_label = Config.CLASS_LABELS[f"c{top_catid.item()}"]
-    confidence = top_prob.item()
+        predicted_label = Config.CLASS_LABELS[f"c{top_catid.item()}"]
+        confidence = top_prob.item()
 
     with col2:
         st.subheader("Inference Diagnostics")
-
         if predicted_label == "Safe Driving":
             st.success(f"**State:** {predicted_label}")
         else:
@@ -91,43 +97,40 @@ if uploaded_file is not None:
         if confidence < threshold:
             st.warning("Confidence is below target threshold. Verification advised.")
 
-        # --- GenAI Seatbelt & Safety Coaching Integration ---
-        st.markdown("---")
-        st.subheader("🤖 GenAI Multimodal Analysis")
+    # --- GenAI Seatbelt & Safety Coaching Integration ---
+    st.markdown("---")
+    st.subheader("🤖 GenAI Multimodal Analysis")
 
-        if gemini_api_key:
-            try:
-                genai.configure(api_key=gemini_api_key)
-                gemini_model = genai.GenerativeModel("gemini-3.8-flash")
+    if gemini_api_key:
+        try:
+            genai.configure(api_key=gemini_api_key)
+            gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+            prompt = f"""
+            Analyze this driver snapshot image and answer two points briefly:
+            1. Seatbelt Status: Is the driver wearing a seatbelt properly across their torso/shoulder? Answer with 'Seatbelt Detected', 'No Seatbelt Detected', or 'Unclear'.
+            2. AI Safety Coaching: The model detected the driver behavior as '{predicted_label}'. Write a polite, concise 1-sentence alert/coaching statement for the driver.
+            """
+            with st.spinner("Analyzing seatbelt & generating safety prompt via Gemini API..."):
+                response = gemini_model.generate_content([prompt, image])
+                st.info(response.text)
+        except Exception as e:
+            st.error(f"GenAI Analysis failed: {e}")
+    else:
+        st.warning("Enter your Gemini API Key in the left sidebar to enable real-time Seatbelt Detection & GenAI Coaching alerts.")
 
-                prompt = f"""
-                Analyze this driver snapshot image and answer two points briefly:
-                1. Seatbelt Status: Is the driver wearing a seatbelt properly across their torso/shoulder? Answer with 'Seatbelt Detected', 'No Seatbelt Detected', or 'Unclear'.
-                2. AI Safety Coaching: The model detected the driver behavior as '{predicted_label}'. Write a polite, concise 1-sentence alert/coaching statement for the driver.
-                """
+    # --- Matplotlib Chart with 45-degree Rotated Labels ---
+    st.markdown("---")
+    st.subheader("Class Probabilities Distribution")
+    labels = [Config.CLASS_LABELS[f"c{i}"] for i in range(10)]
+    probs = [float(probabilities[i]) for i in range(10)]
 
-                with st.spinner("Analyzing seatbelt & generating safety prompt via Gemini API..."):
-                    response = gemini_model.generate_content([prompt, image])
-                    st.info(response.text)
-            except Exception as e:
-                st.error(f"GenAI Analysis failed: {e}")
-        else:
-            st.warning("Enter your Gemini API Key in the left sidebar to enable real-time Seatbelt Detection & GenAI Coaching alerts.")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    bars = ax.bar(labels, probs, color="#1f77b4")
+    ax.set_ylabel("Probability")
+    ax.set_ylim(0, 1.0)
 
-        # --- Matplotlib Chart with 45-degree Rotated Labels ---
-        st.markdown("---")
-        st.subheader("Class Probabilities Distribution")
+    # Rotate x-axis labels by 45 degrees for better readability
+    plt.xticks(rotation=45, ha="right", fontsize=9)
+    plt.tight_layout()
 
-        labels = [Config.CLASS_LABELS[f"c{i}"] for i in range(10)]
-        probs = [float(probabilities[i]) for i in range(10)]
-
-        fig, ax = plt.subplots(figsize=(8, 4))
-        bars = ax.bar(labels, probs, color="#1f77b4")
-        ax.set_ylabel("Probability")
-        ax.set_ylim(0, 1.0)
-
-        # Rotate x-axis labels by 45 degrees for better readability
-        plt.xticks(rotation=45, ha="right", fontsize=9)
-        plt.tight_layout()
-
-        st.pyplot(fig)
+    st.pyplot(fig)
