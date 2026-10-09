@@ -8,3 +8,4 @@ pandas
 albumentations
 opencv-python-headless
 google-generativeai
+timm
