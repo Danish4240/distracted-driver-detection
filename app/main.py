@@ -104,7 +104,7 @@ if uploaded_file is not None:
     if gemini_api_key:
         try:
             genai.configure(api_key=gemini_api_key)
-            gemini_model = genai.GenerativeModel("gemini-2.0-flash")
+            gemini_model = genai.GenerativeModel("gemini-3.8-flash")
             prompt = f"""
             Analyze this driver snapshot image and answer two points briefly:
             1. Seatbelt Status: Is the driver wearing a seatbelt properly across their torso/shoulder? Answer with 'Seatbelt Detected', 'No Seatbelt Detected', or 'Unclear'.
