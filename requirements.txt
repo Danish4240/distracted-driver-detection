@@ -5,3 +5,5 @@ matplotlib
 pillow
 numpy
 pandas
+albumentations
+opencv-python-headless
